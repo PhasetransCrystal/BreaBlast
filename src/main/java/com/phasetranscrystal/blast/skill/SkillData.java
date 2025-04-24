@@ -32,6 +32,7 @@ public class SkillData<T extends Entity> {
             Registries.SKILL.byNameCodec().fieldOf("skill").forGetter(i -> i.skill),
             Codec.INT.fieldOf("activeTimes").forGetter(SkillData::getActiveTimes),
             Codec.unboundedMap(Codec.STRING, Codec.STRING).fieldOf("cacheData").forGetter(SkillData::getCacheData),
+            Codec.unboundedMap(Codec.STRING, Codec.STRING).fieldOf("extendData").forGetter(SkillData::getExtendData),
             Codec.STRING.listOf().fieldOf("markCleanKeys").forGetter(i -> i.markCleanKeys.stream().toList()),
             Codec.STRING.listOf().fieldOf("markCleanCacheOnce").forGetter(i -> i.markCleanCacheOnce.stream().toList())
     ).apply(instance, SkillData::new));
@@ -52,6 +53,7 @@ public class SkillData<T extends Entity> {
     private int activeTimes = 0;
 
     public final Map<String, String> cacheData = new HashMap<>();
+    public final Map<String, String> extendData = new HashMap<>();
     private HashSet<String> markCleanKeys = new HashSet<>();
     private HashSet<String> markCleanCacheOnce = new HashSet<>();
 
@@ -75,7 +77,7 @@ public class SkillData<T extends Entity> {
     }
 
     @SuppressWarnings("unchecked")
-    protected SkillData(int inactiveEnergy, int activeEnergy, Optional<String> behaviorName, boolean enabled, Skill<?> skill, int activeTimes, Map<String, String> cacheData, List<String> markClean, List<String> markCleanCacheOnce) {
+    protected SkillData(int inactiveEnergy, int activeEnergy, Optional<String> behaviorName, boolean enabled, Skill<?> skill, int activeTimes, Map<String, String> cacheData, Map<String, String> extendData, List<String> markClean, List<String> markCleanCacheOnce) {
 
         if (behaviorName.isEmpty() || skill.behaviors.containsKey(behaviorName.get())) {
             this.inactiveEnergy = inactiveEnergy;
@@ -87,6 +89,7 @@ public class SkillData<T extends Entity> {
             this.behavior = behaviorName.map(this.skill.behaviors::get);
             this.skillName = skill.getResourceKey().location();
             this.cacheData.putAll(cacheData);
+            this.extendData.putAll(extendData);
             this.markCleanKeys.addAll(markClean);
             this.markCleanCacheOnce.addAll(markCleanCacheOnce);
         } else {
@@ -406,6 +409,23 @@ public class SkillData<T extends Entity> {
         }
         return cacheData.put(key, value);
     }
+
+    //---[额外数据 ExtendData]---
+    public String putExtendData(String key,String value){
+        if (!enabled || entity == null) return null;
+        return extendData.put(key, value);
+    }
+
+    public String getExtendData(String key){
+        return extendData.get(key);
+    }
+
+    public Map<String, String> getExtendData() {
+        return extendData;
+    }
+
+
+
 
     @SuppressWarnings("null")
     public boolean addAutoCleanAttribute(AttributeModifier modifier, Holder<Attribute> type) {

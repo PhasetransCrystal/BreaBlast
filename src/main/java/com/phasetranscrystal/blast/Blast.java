@@ -5,11 +5,13 @@ import com.phasetranscrystal.blast.registry.SkillRegistry;
 import com.phasetranscrystal.blast.player.SkillGroup;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
+@Mod(Blast.MODID)
 public class Blast {
     public static final String MODID = "brea_blast";
 
