@@ -1,6 +1,7 @@
 package com.phasetranscrystal.blast;
 
 
+import com.phasetranscrystal.blast.registry.AttributeRegistry;
 import com.phasetranscrystal.blast.registry.SkillRegistry;
 import com.phasetranscrystal.blast.player.SkillGroup;
 import net.minecraft.resources.ResourceLocation;
@@ -18,6 +19,7 @@ public class Blast {
     public Blast(IEventBus bus) {
         ATTACHMENT.register(bus);
         SkillRegistry.SKILL.register(bus);
+        AttributeRegistry.ATTRIBUTES.register(bus);
     }
 
     public static ResourceLocation location(String path) {

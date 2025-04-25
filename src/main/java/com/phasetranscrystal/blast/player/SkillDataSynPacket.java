@@ -13,13 +13,13 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import java.util.Optional;
 
 public record SkillDataSynPacket(Optional<Skill<Player>> skill,
-                                 Optional<Optional<String>> stage,
+                                 Optional<String> stage,
                                  Optional<Integer> inactiveEnergy, Optional<Integer> activeEnergy,
                                  Optional<Integer> activeTimes) implements CustomPacketPayload {
     public static final Type<SkillDataSynPacket> TYPE = new Type<>(Blast.location("player_skill_syn"));
     public static final StreamCodec<ByteBuf, SkillDataSynPacket> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.optional(ByteBufCodecs.fromCodec(Registries.SKILL.byNameCodec())), packet -> packet.skill.map(s -> s),
-            ByteBufCodecs.optional(ByteBufCodecs.optional(ByteBufCodecs.STRING_UTF8)), SkillDataSynPacket::stage,
+            ByteBufCodecs.optional(ByteBufCodecs.STRING_UTF8), SkillDataSynPacket::stage,
             ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::inactiveEnergy,
             ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::activeEnergy,
             ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::activeTimes,
@@ -27,7 +27,7 @@ public record SkillDataSynPacket(Optional<Skill<Player>> skill,
     );
 
     @SuppressWarnings("all")
-    private static SkillDataSynPacket decode(Optional<Skill<?>> skill, Optional<Optional<String>> stage,
+    private static SkillDataSynPacket decode(Optional<Skill<?>> skill, Optional<String> stage,
                                              Optional<Integer> inactiveEnergy, Optional<Integer> activeEnergy, Optional<Integer> activeTimes) {
         return new SkillDataSynPacket(skill.map(s -> (Skill<Player>) s), stage, inactiveEnergy, activeEnergy, activeTimes);
     }
@@ -44,7 +44,7 @@ public record SkillDataSynPacket(Optional<Skill<Player>> skill,
 
     public static class Mutable {
         public Optional<Skill<Player>> skill = Optional.empty();
-        public Optional<Optional<String>> stage = Optional.empty();
+        public Optional<String> stage = Optional.empty();
         public Optional<Integer> inactiveEnergy = Optional.empty();
         public Optional<Integer> activeEnergy = Optional.empty();
         public Optional<Integer> activeTimes = Optional.empty();
@@ -54,7 +54,7 @@ public record SkillDataSynPacket(Optional<Skill<Player>> skill,
             this.skill = Optional.of(skill);
         }
 
-        public void setStage(Optional<String> stage) {
+        public void setStage(String stage) {
             this.stage = Optional.of(stage);
         }
 

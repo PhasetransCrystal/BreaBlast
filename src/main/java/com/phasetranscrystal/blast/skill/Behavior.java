@@ -2,7 +2,6 @@ package com.phasetranscrystal.blast.skill;
 
 import com.google.common.collect.ImmutableMap;
 import com.phasetranscrystal.blast.player.KeyInput;
-import com.phasetranscrystal.blast.player.KeyInputEvent;
 import com.phasetranscrystal.horiz.EventConsumer;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -16,33 +15,43 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class Behavior<T extends Entity> {
+    public static final Behavior<Entity> EMPTY = Builder.create().build();
 
-    public final int delay;
+
+
+    public final boolean useActiveCounter;
+    public final int maxStageEnergy;
+    public final int maxCharge;
     public final Consumer<SkillData<T>> start;
     public final Consumer<SkillData<T>> end;
     public final Consumer<SkillData<T>> chargeReady;
     public final Consumer<SkillData<T>> chargeFull;
-    public final Consumer<SkillData<T>> activeEnd;
-    public final BiConsumer<SkillData<T>, Integer> inactiveEnergyChange;
-    public final BiConsumer<SkillData<T>, Integer> activeEnergyChange;
-    public final BiConsumer<SkillData<T>, Integer> chargeChange;
+    public final Consumer<SkillData<T>> energyEmpty;
+    public final BiConsumer<SkillData<T>, Integer> energyChange;
+    public final BiConsumer<SkillData<T>, Integer> chargeChange;//数值为充能层数变化量
     public final IntList keys;
     public final KeyInput.Consumer<T> keyChange;
     public final ImmutableMap<Class<? extends Event>, BiConsumer<? extends Event, SkillData<T>>> listeners;
 
-    public Behavior(Builder<T> builder) {
-        this.delay = Math.max(builder.delay, 1);
-        this.inactiveEnergyChange = builder.inactiveEnergyChange;
-        this.activeEnergyChange = builder.activeEnergyChange;
+    public Behavior(Builder<T> builder, boolean useActiveCounter) {
+
+        this.useActiveCounter = useActiveCounter;
+        this.maxStageEnergy = Math.max(builder.maxStageEnergy, 0);
+        this.maxCharge = Math.max(builder.maxCharge, 1);
+        this.energyChange = builder.energyChange;
         this.chargeChange = builder.chargeChange;
         this.start = builder.start;
         this.end = builder.end;
         this.chargeReady = builder.chargeReady;
         this.chargeFull = builder.chargeFull;
-        this.activeEnd = builder.activeEnd;
+        this.energyEmpty = builder.energyEmpty;
         this.keys = IntList.of(builder.keys.toIntArray());
         this.keyChange = builder.keyChange;
         this.listeners = ImmutableMap.copyOf(builder.listeners);
+    }
+
+    public int getMaxEnergy(){
+        return maxStageEnergy * maxCharge;
     }
 
     public static class Builder<T extends Entity> {
@@ -50,13 +59,13 @@ public class Behavior<T extends Entity> {
         };
         public final BiConsumer<SkillData<T>, Integer> EMPTY_BI = (data, relate) -> {
         };
-        public int delay = 1;
-        public BiConsumer<SkillData<T>, Integer> inactiveEnergyChange = EMPTY_BI;
-        public BiConsumer<SkillData<T>, Integer> activeEnergyChange = EMPTY_BI;
+        public int maxStageEnergy = 64;
+        public int maxCharge = 1;
+        public BiConsumer<SkillData<T>, Integer> energyChange = EMPTY_BI;
         public BiConsumer<SkillData<T>, Integer> chargeChange = EMPTY_BI;
         public Consumer<SkillData<T>> chargeReady = EMPTY;
         public Consumer<SkillData<T>> chargeFull = EMPTY;
-        public Consumer<SkillData<T>> activeEnd = EMPTY;
+        public Consumer<SkillData<T>> energyEmpty = EMPTY;
         public Consumer<SkillData<T>> start = EMPTY;
         public Consumer<SkillData<T>> end = EMPTY;
         public IntList keys = new IntArrayList();
@@ -68,10 +77,13 @@ public class Behavior<T extends Entity> {
             return new Builder<>();
         }
 
+        public static <T extends Entity> Builder<T> create(int maxEnergy, int maxCharge) {
+            return new Builder<T>().setMaxStageEnergy(maxEnergy).setMaxCharge(maxCharge);
+        }
+
         public static <T extends Entity> Builder<T> create(Behavior<T> root) {
             Builder<T> builder = new Builder<T>();
-            builder.inactiveEnergyChange = root.inactiveEnergyChange;
-            builder.activeEnergyChange = root.activeEnergyChange;
+            builder.energyChange = root.energyChange;
             builder.chargeChange = root.chargeChange;
             builder.start = root.start;
             builder.end = root.end;
@@ -84,8 +96,13 @@ public class Behavior<T extends Entity> {
             return this;
         }
 
-        public Builder<T> setDelay(int delay) {
-            this.delay = delay;
+        public Builder<T> setMaxStageEnergy(int maxStageEnergy) {
+            this.maxStageEnergy = maxStageEnergy;
+            return this;
+        }
+
+        public Builder<T> setMaxCharge(int maxCharge) {
+            this.maxCharge = maxCharge;
             return this;
         }
 
@@ -94,13 +111,8 @@ public class Behavior<T extends Entity> {
             return this;
         }
 
-        public Builder<T> inactiveEnergyChanged(BiConsumer<SkillData<T>, Integer> consumer) {
-            this.inactiveEnergyChange = consumer;
-            return this;
-        }
-
-        public Builder<T> activeEnergyChanged(BiConsumer<SkillData<T>, Integer> consumer) {
-            this.activeEnergyChange = consumer;
+        public Builder<T> energyChanged(BiConsumer<SkillData<T>, Integer> consumer) {
+            this.energyChange = consumer;
             return this;
         }
 
@@ -115,7 +127,7 @@ public class Behavior<T extends Entity> {
         }
 
         public Builder<T> onActiveEnergyEmpty(Consumer<SkillData<T>> consumer) {
-            this.activeEnd = consumer;
+            this.energyEmpty = consumer;
             return this;
         }
 
@@ -161,7 +173,11 @@ public class Behavior<T extends Entity> {
         }
 
         public Behavior<T> build() {
-            return new Behavior<>(this);
+            return new Behavior<>(this,false);
+        }
+
+        public Behavior<T> build(boolean useActiveCounter) {
+            return new Behavior<>(this,useActiveCounter);
         }
     }
 }

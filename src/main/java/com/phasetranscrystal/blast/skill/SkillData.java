@@ -5,6 +5,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.phasetranscrystal.blast.Blast;
 import com.phasetranscrystal.blast.Registries;
+import com.phasetranscrystal.blast.registry.AttributeRegistry;
 import com.phasetranscrystal.horiz.EntityEventDistribute;
 import com.phasetranscrystal.horiz.Horiz;
 import net.minecraft.core.Holder;
@@ -19,18 +20,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joml.Math;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class SkillData<T extends Entity> {
     public static final Codec<SkillData<? extends Entity>> CODEC = RecordCodecBuilder.create((instance) -> instance.group(
-            Codec.INT.fieldOf("inactiveEnergy").forGetter(SkillData::getInactiveEnergy),
-            Codec.INT.fieldOf("activeEnergy").forGetter(SkillData::getActiveEnergy),
-            Codec.STRING.optionalFieldOf("behavior").forGetter(SkillData::getBehaviorName),
+            Codec.INT.fieldOf("energyEnergy").forGetter(SkillData::getInactiveEnergy),
+            Codec.STRING.fieldOf("behavior").forGetter(SkillData::getBehaviorName),
             Codec.BOOL.fieldOf("enabled").forGetter(SkillData::isEnabled),
             Registries.SKILL.byNameCodec().fieldOf("skill").forGetter(i -> i.skill),
             Codec.INT.fieldOf("activeTimes").forGetter(SkillData::getActiveTimes),
+            Codec.pair(Codec.STRING, Codec.INT).optionalFieldOf("schedulerInfo").forGetter(i -> Optional.ofNullable(i.occupy ? Pair.of(i.stageChangeScheduleName, i.delay) : null)),
             Codec.unboundedMap(Codec.STRING, Codec.STRING).fieldOf("cacheData").forGetter(SkillData::getCacheData),
             Codec.unboundedMap(Codec.STRING, Codec.STRING).fieldOf("extendData").forGetter(SkillData::getExtendData),
             Codec.STRING.listOf().fieldOf("markCleanKeys").forGetter(i -> i.markCleanKeys.stream().toList()),
@@ -44,11 +47,11 @@ public class SkillData<T extends Entity> {
     public final Skill<T> skill;
     public final ResourceLocation skillName;
     private T entity;//NOSAVE
+    private boolean enableAttribute = true;//NOSAVE
 
-    private int inactiveEnergy;
-    private int activeEnergy = 0;
-    private Optional<String> behaviorName;
-    private Optional<Behavior<T>> behavior;
+    private int energy;
+    private String behaviorName;
+    private Behavior<T> behavior;
 
     private int activeTimes = 0;
 
@@ -61,43 +64,51 @@ public class SkillData<T extends Entity> {
 
     private int delay = 0;//NOSAVE
     private boolean occupy = false;
-    private Runnable stageChangeSchedule = () -> {//NOSAVE
-    };
-    private final Consumer<EntityTickEvent.Post> ticker = event -> tickerHandler();//FINAL
+    private String stageChangeScheduleName = null;
 
     private boolean markChanged = true;
+    private boolean loading = false;
 
 
     public SkillData(final Skill<T> skill) {
         this.skill = skill;
         this.skillName = skill.getResourceKey().location();
-        this.inactiveEnergy = skill.initialEnergy + skill.initialCharge * skill.inactiveEnergy;
-        this.behaviorName = skill.initBehavior;
-        this.behavior = behaviorName.map(skill.behaviors::get);
+        this.behaviorName = skill.initBehaviorName;
+        this.behavior = skill.initBehavior;
+        this.energy = skill.initialEnergy;
     }
 
     @SuppressWarnings("unchecked")
-    protected SkillData(int inactiveEnergy, int activeEnergy, Optional<String> behaviorName, boolean enabled, Skill<?> skill, int activeTimes, Map<String, String> cacheData, Map<String, String> extendData, List<String> markClean, List<String> markCleanCacheOnce) {
+    protected SkillData(int energy, String behaviorName, boolean enabled, Skill<?> skill, int activeTimes, Optional<Pair<String, Integer>> stageChangeScheduler,
+                        Map<String, String> cacheData, Map<String, String> extendData, List<String> markClean, List<String> markCleanCacheOnce) {
+        this.skill = (Skill<T>) skill;
+        this.skillName = skill.getResourceKey().location();
+        if (!skill.behaviors.containsKey(behaviorName)) {
 
-        if (behaviorName.isEmpty() || skill.behaviors.containsKey(behaviorName.get())) {
-            this.inactiveEnergy = inactiveEnergy;
-            this.activeEnergy = activeEnergy;
+            LOGGER.warn("Unable to find behavior({}) when load, switched to default status.", behaviorName);
+            this.energy = skill.initialEnergy;
+            this.behaviorName = (String) skill.behaviors.keySet().toArray()[0];
+            this.behavior = (Behavior<T>) skill.behaviors.get(this.behaviorName);
+        } else {
+            this.loading = true;
+            this.energy = energy;
             this.enabled = enabled;
             this.activeTimes = activeTimes;
-            this.skill = (Skill<T>) skill;
             this.behaviorName = behaviorName;
-            this.behavior = behaviorName.map(this.skill.behaviors::get);
-            this.skillName = skill.getResourceKey().location();
+            this.behavior = (Behavior<T>) skill.behaviors.get(behaviorName);
             this.cacheData.putAll(cacheData);
             this.extendData.putAll(extendData);
             this.markCleanKeys.addAll(markClean);
             this.markCleanCacheOnce.addAll(markCleanCacheOnce);
-        } else {
-            LOGGER.warn("Unable to find behavior({}) when load, switched to default status.", behaviorName);
-            this.skill = (Skill<T>) skill;
-            this.skillName = skill.getResourceKey().location();
-            this.inactiveEnergy = skill.initialEnergy + skill.initialCharge * skill.inactiveEnergy;
-            this.behaviorName = skill.initBehavior;
+            if (stageChangeScheduler.isPresent()) {
+                if (!skill.behaviors.containsKey(stageChangeScheduler.get().getFirst())) {
+                    LOGGER.warn("Unable to find scheduled target behavior({}) when load, state change won't work.", stageChangeScheduler.get().getFirst());
+                } else {
+                    occupy = true;
+                    stageChangeScheduleName = stageChangeScheduler.get().getFirst();
+                    delay = stageChangeScheduler.get().getSecond();
+                }
+            }
         }
     }
 
@@ -106,10 +117,15 @@ public class SkillData<T extends Entity> {
     @SuppressWarnings("unchecked,unused")
     public boolean tryCastAnd(LivingEntity entity, Consumer<T> consumer) {
         try {
-            if(skill.clazz.isAssignableFrom(entity.getClass())) return false;
+            if (skill.bindingEntityClass.isAssignableFrom(entity.getClass())) {
+                LOGGER.warn("Unable to cast an instance of {} to {}. No legal relation found.", entity.getClass(), skill.bindingEntityClass);
+                ;
+            }
             consumer.accept((T) entity);
             return true;
         } catch (ClassCastException e) {
+            LOGGER.warn("Unable to cast an instance of {} to {}.", entity.getClass(), skill.bindingEntityClass);
+            LOGGER.warn("Details:", e);
             return false;
         }
     }
@@ -118,6 +134,21 @@ public class SkillData<T extends Entity> {
         if (this.entity != null && !entity.getUUID().equals(this.entity.getUUID())) {
             LOGGER.warn("Entity instance (class={}) already exists. Skipped.", entity.getClass());
             return;
+        }
+        if (!(entity instanceof LivingEntity living)) {
+            this.enableAttribute = false;
+        } else if (!living.getAttributes().hasAttribute(AttributeRegistry.SKILL_INACTIVE_ENERGY) ||
+                !living.getAttributes().hasAttribute(AttributeRegistry.SKILL_ACTIVE_ENERGY) ||
+                !living.getAttributes().hasAttribute(AttributeRegistry.SKILL_MAX_CHARGE) ||
+                !living.getAttributes().hasAttribute(AttributeRegistry.ENERGY)) {
+            LOGGER.info("Try to bind skill {} to {} with no target attribute. Dispatch Enabled.", skillName, entity);
+            this.enableAttribute = false;
+        } else {
+            this.enableAttribute = true;
+            //由于我们在上面已经判断过具有属性 所以这里并不会出错
+            living.getAttribute(this.behavior.useActiveCounter ? AttributeRegistry.SKILL_ACTIVE_ENERGY : AttributeRegistry.SKILL_INACTIVE_ENERGY).setBaseValue(this.behavior.maxStageEnergy);
+            living.getAttribute(AttributeRegistry.SKILL_MAX_CHARGE).setBaseValue(this.behavior.maxCharge);
+            living.getAttribute(AttributeRegistry.ENERGY).setBaseValue(this.energy);
         }
 
         this.entity = entity;
@@ -132,7 +163,7 @@ public class SkillData<T extends Entity> {
 
         //技能基础行为初始化
         EntityEventDistribute distribute = entity.getData(Horiz.EVENT_DISTRIBUTE);
-        distribute.add(EntityTickEvent.Post.class, ticker, Skill.NAME, skillName, SKILL_BASE_KEY);
+//        distribute.add(EntityTickEvent.Post.class, ticker, Skill.NAME, skillName, SKILL_BASE_KEY);
         skill.onStart.accept(this);
         skill.listeners.forEach((clazz, consumer) -> distribute.add(clazz, event -> ((BiConsumer) consumer).accept(event, this), Skill.NAME, skillName, SKILL_BASE_KEY));
 
@@ -141,43 +172,40 @@ public class SkillData<T extends Entity> {
         postBehavior(distribute);
     }
 
+    //在技能被启用或状态被切换至时执行
     @SuppressWarnings("unchecked,rawtypes")
     private void postBehavior(EntityEventDistribute distribute) {
-        this.behavior.ifPresent(behavior -> {
-            var name = this.behaviorName;
-            behavior.start.accept(this);
 
-            int charge = inactiveEnergy / skill.inactiveEnergy;
-            if (charge > 0 && skill.maxCharge > 1) {
-                behavior.chargeReady.accept(this);
-            }
-            if (charge >= skill.maxCharge) {
-                behavior.chargeFull.accept(this);
-            }
-            if (activeEnergy <= 0) {
-                behavior.activeEnd.accept(this);
-            }
-
-            if (inactiveEnergy > 0) {
-                behavior.inactiveEnergyChange.accept(this, inactiveEnergy);
-            }
-            if (charge > 0) {
-                behavior.chargeChange.accept(this, charge);
-            }
-            if (activeEnergy < skill.activeEnergy || skill.activeEnergy == 0) {
-                behavior.activeEnergyChange.accept(this, skill.activeEnergy - activeEnergy);
-            }
-
-            if (Objects.equals(behaviorName.orElse(null), name.orElse(null))) {
-                behavior.listeners.forEach((clazz, consumer) -> distribute.add(clazz, event -> ((BiConsumer) consumer).accept(event, this), Skill.NAME, skillName, SKILL_BEHAVIOR_KEY));
-            }
-        });
         markChanged = true;
+
+        String behaviorNameCache = this.behaviorName;
+        behavior.start.accept(this);
+        if (!this.behaviorName.equals(behaviorNameCache)) return;
+
+        int charge = behavior.maxStageEnergy == 0 ? 0 : energy / behavior.maxStageEnergy;
+        if (charge > 0 && behavior.maxCharge > 1) {
+            behavior.chargeReady.accept(this);
+        }
+        if (charge >= behavior.maxCharge) {
+            behavior.chargeFull.accept(this);
+        }
+        if (energy <= 0) {
+            behavior.energyEmpty.accept(this);
+        }
+
+        behavior.energyChange.accept(this, energy);
+        if (charge > 0) {
+            behavior.chargeChange.accept(this, charge);
+        }
+
+        behavior.listeners.forEach((clazz, consumer) -> distribute.add(clazz, event -> ((BiConsumer) consumer).accept(event, this), Skill.NAME, skillName, SKILL_BEHAVIOR_KEY));
+
+        loading = false;
     }
 
     @SuppressWarnings("all")
     public boolean switchToIfNot(String behavior) {
-        if (!Objects.equals(this.behaviorName.orElse(null), behavior)) {
+        if (!this.behaviorName.equals(behavior)) {
             return switchTo(behavior);
         }
         return false;
@@ -186,48 +214,37 @@ public class SkillData<T extends Entity> {
 
     public boolean switchTo(String behaviorName) {
         if (!enabled || occupy) return false;
-        EntityEventDistribute distribute = entity.getData(Horiz.EVENT_DISTRIBUTE);
+        EntityEventDistribute eventDtb = entity.getData(Horiz.EVENT_DISTRIBUTE);
 
-        var newBehavior = Optional.ofNullable(behaviorName);
-
-        if (!skill.judge.applyAsBoolean(this, newBehavior))
-            return false;
-
-        distribute.removeMarked(Skill.NAME, skillName, SKILL_BEHAVIOR_KEY);
-        Optional<Behavior<T>> behaviorTo = newBehavior.map(skill.behaviors::get);
-        if (newBehavior.isPresent() && behaviorTo.isEmpty()) {
+        if (!skill.behaviors.containsKey(behaviorName)) {
             LOGGER.error("Unable to find Behavior(name={}), state switch canceled. See debug.log for more details.", behaviorName);
             LOGGER.debug("Details: Skill={} Entity={uuid={}, type={}}", skillName, entity.getUUID(), entity.getType());
             LOGGER.debug("Fired at com.phasetranscrystal.nonard.skill.SkillData#switchTo.", new Throwable());
             return false;
         }
 
-        skill.stateChange.accept(this, newBehavior);
-        this.behavior.ifPresent(b -> b.end.accept(this));
+        if (!skill.judge.applyAsBoolean(this, behaviorName))
+            return false;
+
+        eventDtb.removeMarked(Skill.NAME, skillName, SKILL_BEHAVIOR_KEY);
+        @Nonnull Behavior<T> behaviorTo = skill.behaviors.get(behaviorName);
+
+        skill.stateChange.accept(this, behaviorName);
+        this.behavior.end.accept(this);
 
         if (entity instanceof LivingEntity living) {
             attributeCache.forEach(pair -> living.getAttribute(pair.getFirst()).removeModifier(pair.getSecond()));
             attributeCache.clear();
         }
-        cacheDataRoll();
 
+        markCleanKeys.forEach(cacheData::remove);
+        markCleanKeys = markCleanCacheOnce;
+        markCleanCacheOnce = new HashSet<>();
 
-        this.behaviorName = newBehavior;
+        this.behaviorName = behaviorName;
+        this.behavior = behaviorTo;
+        postBehavior(eventDtb);
 
-        if (behaviorTo.isPresent()) {
-            stageChangeSchedule = () -> {
-                this.behavior = behaviorTo;
-                postBehavior(distribute);
-            };
-            delay = behaviorTo.get().delay;
-        } else {
-            stageChangeSchedule = () -> {
-                this.behavior = Optional.empty();
-                markChanged = true;
-            };
-            delay = 1;
-        }
-        occupy = true;
 
         return true;
     }
@@ -254,8 +271,8 @@ public class SkillData<T extends Entity> {
             attributeCache.clear();
         }
         enabled = false;
-        behaviorName = skill.initBehavior;
-        inactiveEnergy = skill.initialEnergy + skill.initialCharge * skill.inactiveEnergy;
+        behaviorName = skill.initBehaviorName;
+        energy = skill.initialEnergy;
         activeTimes = 0;
         markCleanCacheOnce.clear();
         markCleanKeys.clear();
@@ -264,37 +281,16 @@ public class SkillData<T extends Entity> {
         return true;
     }
 
-    private void cacheDataRoll() {
-        markCleanKeys.forEach(cacheData::remove);
-        markCleanKeys = markCleanCacheOnce;
-        markCleanCacheOnce = new HashSet<>();
-    }
+
+    //---[能力分发调度]---
+
+//    public int getEnergy(){
+//        if(enableAttribute){
+//            ((LivingEntity) entity).getAttribute(AttributeRegistry.)
+//        }
+//    }
 
     //---[状态 State]---
-
-    public boolean isPassivity() {
-        return skill.inactiveEnergy == 0;
-    }
-
-    public boolean isInstantComplete() {
-        return skill.activeEnergy == 0;
-    }
-
-    private void tickerHandler() {
-        if (delay >= 1) {
-            if (delay == 1) {
-                var last = stageChangeSchedule;
-                occupy = false;
-                stageChangeSchedule.run();
-                //防止在技能瞬间完成时新的计划被覆盖
-                if (stageChangeSchedule != last) return;
-                stageChangeSchedule = () -> {
-                };
-            }
-            delay--;
-        }
-    }
-
     public boolean addEnergy() {
         return addEnergy(1) == 1;
     }
@@ -305,68 +301,46 @@ public class SkillData<T extends Entity> {
     }
 
     public int addEnergy(int amount, boolean consumerChargeLessThanZero) {
-        return addEnergy(amount, consumerChargeLessThanZero, skill.maxCharge);
+        return addEnergy(amount, consumerChargeLessThanZero, behavior.maxCharge);
     }
 
     public int addEnergyAllowOverCharge(int amount, boolean consumerChargeLessThanZero) {
         return addEnergy(amount, consumerChargeLessThanZero, Integer.MAX_VALUE);
     }
 
-    public int addEnergy(int amount, boolean consumerChargeLessThanZero, int allowedMaxCharge) {
+    public int addEnergy(int amount, boolean consumerChargeLessThanZero, int allowedOverCharge) {
         if (!enabled) return 0;
         if (amount == 0) return 0;
 
         // 计算最大可增加的能量
-        int maxEnergy = skill.inactiveEnergy * allowedMaxCharge;
-        if(amount > 0 && this.inactiveEnergy >= maxEnergy) return 0;
+        int maxEnergy = allowedOverCharge == Integer.MAX_VALUE ? Integer.MAX_VALUE : behavior.getMaxEnergy();
+        if (amount > 0 && this.energy >= maxEnergy) return 0;
 
-        int chargeCache = this.inactiveEnergy / skill.inactiveEnergy;
-        int energyCache = this.inactiveEnergy;
+        int chargeCache = this.energy / behavior.maxStageEnergy;
+        int energyCache = this.energy;
 
-        inactiveEnergy = Math.clamp((amount > 0 || consumerChargeLessThanZero) ? 0 : chargeCache * skill.inactiveEnergy, maxEnergy, this.inactiveEnergy + amount);
+        energy = Math.clamp((amount > 0 || consumerChargeLessThanZero) ? 0 : chargeCache * behavior.maxStageEnergy, maxEnergy, this.energy + amount);
 
-        int deltaEnergy = this.inactiveEnergy - energyCache;
+        int deltaEnergy = this.energy - energyCache;
 
 
         if (deltaEnergy == 0) return 0;
 
-        this.behavior.ifPresent(behavior -> {
-            behavior.inactiveEnergyChange.accept(this, deltaEnergy);
+        behavior.energyChange.accept(this, deltaEnergy);
 
-            if (this.inactiveEnergy / skill.inactiveEnergy == chargeCache) return;
-
-            behavior.chargeChange.accept(this, inactiveEnergy / skill.inactiveEnergy - chargeCache);
-            if (skill.maxCharge > 1 && chargeCache <= 0 && getCharge() >= 1)
+        int chargeTo = getCharge();
+        if (chargeTo != chargeCache) {
+            behavior.chargeChange.accept(this, chargeTo - chargeCache);
+            if (behavior.maxCharge > 1 && chargeCache <= 0 && chargeTo >= 1)
                 behavior.chargeReady.accept(this);
-            if (getCharge() >= skill.maxCharge && chargeCache < skill.maxCharge)
+            if (chargeTo >= behavior.maxCharge && chargeCache < behavior.maxCharge)
                 behavior.chargeFull.accept(this);
-
-        });
+        }
 
         markChanged = true;
 
         return deltaEnergy; // 如果没有增加charge，仍然返回消耗的总能量点数
     }
-
-    public int modifyActiveEnergy(int amount) {
-        if (amount == 0) return 0;
-        int nowa = Math.clamp(0, this.skill.activeEnergy, this.activeEnergy + amount);
-        int deltaEnergy = nowa - this.activeEnergy;
-        this.activeEnergy = nowa;
-
-        if (deltaEnergy == 0) return 0;
-
-        this.behavior.ifPresent(behavior -> {
-            behavior.activeEnergyChange.accept(this, deltaEnergy);
-            if (activeEnergy <= 0) {
-                behavior.activeEnd.accept(this);
-            }
-        });
-
-        markChanged = true;
-        return deltaEnergy;
-    }
-
 
     //---[缓存数据 DataCache]---
 
@@ -422,20 +396,18 @@ public class SkillData<T extends Entity> {
     }
 
     //---[额外数据 ExtendData]---
-    public String putExtendData(String key,String value){
+    public String putExtendData(String key, String value) {
         if (!enabled || entity == null) return null;
         return extendData.put(key, value);
     }
 
-    public String getExtendData(String key){
+    public String getExtendData(String key) {
         return extendData.get(key);
     }
 
     public Map<String, String> getExtendData() {
         return extendData;
     }
-
-
 
 
     @SuppressWarnings("null")
@@ -452,18 +424,18 @@ public class SkillData<T extends Entity> {
 
     //---[数据获取 Getter]---
     public int getInactiveEnergy() {
-        return inactiveEnergy;
+        return energy;
     }
 
     public int getCharge() {
-        return this.inactiveEnergy / skill.inactiveEnergy;
+        return this.energy / behavior.maxStageEnergy;
     }
 
     public T getEntity() {
         return entity;
     }
 
-    public Optional<Behavior<T>> getBehavior() {
+    public Behavior<T> getBehavior() {
         return behavior;
     }
 
@@ -480,11 +452,11 @@ public class SkillData<T extends Entity> {
         //TODO 全局计数器
     }
 
-    public int getActiveEnergy() {
-        return activeEnergy;
+    public int getEnergy() {
+        return energy;
     }
 
-    public Optional<String> getBehaviorName() {
+    public String getBehaviorName() {
         return behaviorName;
     }
 
@@ -493,39 +465,16 @@ public class SkillData<T extends Entity> {
         markCleanKeys.remove(key);
     }
 
-    public boolean consumeCharge() {
-        this.inactiveEnergy -= skill.inactiveEnergy;
-        this.activeEnergy = skill.activeEnergy;
-        this.consumerActiveStart();
-        return true;
-    }
-
-    //下面的设定不会触发能量变动事件
-    public void setInactiveEnergy(int inactiveEnergy) {
-        int old = this.inactiveEnergy;
-        this.inactiveEnergy = Math.clamp(0, skill.inactiveEnergy * skill.maxCharge, inactiveEnergy);
-        if(this.inactiveEnergy != old) {
-            markChanged = true;
-        }
+    public void setEnergy(int energy) {
+        addEnergy(energy - this.energy);
     }
 
     public void setCharge(int charge) {
-        int old = this.inactiveEnergy;
-        this.inactiveEnergy = Math.clamp(0, skill.maxCharge, charge) * skill.inactiveEnergy;
-        if(this.inactiveEnergy != old) {
-            markChanged = true;
-        }
+        setEnergy(behavior.maxStageEnergy * charge);
     }
 
-    public void setActiveEnergy(int activeEnergy) {
-        int old = this.activeEnergy;
-        this.activeEnergy = Math.clamp(0, skill.activeEnergy, activeEnergy);
-        if(this.activeEnergy != old) {
-            markChanged = true;
-        }
-    }
 
-    public void consumeChange(){
+    public void consumeChange() {
         this.markChanged = false;
     }
 

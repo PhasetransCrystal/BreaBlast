@@ -46,74 +46,74 @@ public class SkillRegistry {
 
     public static final DeferredRegister<Skill<?>> SKILL = DeferredRegister.create(Registries.SKILL, Blast.MODID);
 
-    public static final DeferredHolder<Skill<?>, Skill<? extends Entity>> EMPTY = SKILL.register("empty", () -> Skill.Builder.of(0).end(Entity.class));
+    public static final DeferredHolder<Skill<?>, Skill<? extends Entity>> EMPTY = SKILL.register("empty", () -> Skill.EMPTY);
 
-    public static final DeferredHolder<Skill<?>, Skill<Player>> TEST_SKILL = SKILL.register("test",
-            () -> Skill.Builder.<Player>of(30, 4)
-                    .start(data -> data.getEntity().displayClientMessage(Component.literal("TestSkillInit"), false))
-//                    .flag(Skill.Flag.INSTANT_COMPLETE, true)
-                    .onEvent(EntityTickEvent.Post.class, (event, data) -> {
-                        Player player = data.getEntity();
-                        if (player.level().getGameTime() % 100 == 0 && player.getHealth() < player.getMaxHealth()) {
-                            player.displayClientMessage(Component.literal("You are healed!"), false);
-                            player.addEffect(new MobEffectInstance(MobEffects.HEAL, 100, 2));
-                        }
-                    })
-                    .inactive(builder -> builder
-                            //按键监听测试
-                            .onHurt((event, data) -> data.addEnergy(-1))
-                            .onAttack((event, data) -> data.addEnergy(2))
-                            .onKillTarget((event, data) -> data.addEnergy(5))
-                            .inactiveEnergyChanged((data, i) -> {
-                                data.getEntity().displayClientMessage(Component.literal("Energy " + (i >= 0 ? "§a+" : "§c-") + i), true);
-                            })
-                            .chargeChanged((data, i) -> {
-                                data.getEntity().displayClientMessage(Component.literal("Charge " + (i >= 0 ? "§a+" : "§c-") + i), true);
-                                ResourceLocation location = ResourceLocation.fromNamespaceAndPath(Blast.MODID, "skill_test");
-                                data.addAutoCleanAttribute(new AttributeModifier(location, 0.5 * data.getCharge(), AttributeModifier.Operation.ADD_VALUE), Attributes.MOVEMENT_SPEED);
-                            })
-                            .onChargeReady(data -> data.getEntity().displayClientMessage(Component.literal("ReachReady!"), false))
-                            .onChargeFull(data -> data.getEntity().displayClientMessage(Component.literal("ReachStop!"), false))
-                            .endWith(data -> {
-                                data.putCacheData("charge_consume", data.getCharge() + 1 + "", true, true);
-                                data.setCharge(0);
-                            })
-                    )
-                    .judge((data, name) -> !"active".equals(name.orElse("")) || (data.getEntity().level().isNight() && data.getCharge() >= 1))
-                    .active(builder -> builder
-                            .startWith(data -> {
-                                Vec3 pos = data.getEntity().position();
-                                ((ServerLevel) data.getEntity().level()).sendParticles(ParticleTypes.EXPLOSION, pos.x, pos.y, pos.z, 4, 0.5, 0.5, 0.5, 0.5);
-                            })
-                            .onTick((event, data) -> {
-                                data.getEntity().displayClientMessage(Component.literal("activeTick"), true);
-                                data.modifyActiveEnergy(-1);
-                            })
-                            .endWith(data -> {
-                                data.getEntity().jumpFromGround();
-                                data.getEntity().addDeltaMovement(new Vec3(0, 0.1, 0));
-                                data.getEntity().addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 200 * data.getCacheDataAsInt("charge_consume", 0, true), 2));
-                            })
-                    )
-                    .onBehaviorChange((data, behavior) -> {
-                        if (data.getActiveTimes() == 5) data.requestDisable();
-                        else {
-                            data.getEntity().displayClientMessage(Component.literal("StateChanged: to " + behavior.map(s -> "\"" + behavior + "\"").orElse("null") + " time " + data.getActiveTimes()), false);
-                            if ("active".equals(behavior.orElse(""))) data.consumeCharge();
-                        }
-                    })
-                    .end(data -> data.getEntity().displayClientMessage(Component.literal("skill disabled"), false), Player.class)
-    );
-
-    public static final DeferredHolder<Skill<?>, Skill<Player>> OLD_MA = SKILL.register("old_ma", () -> Skill.Builder
-            .<Player>of(50, 3, 0, 0, 50)
-            .start(data -> data.getEntity().displayClientMessage(Component.literal("OldMaInit"), false))
-            .judge((data, name) -> data.getCharge() == 3)
-            .addBehavior(builder -> builder
-                            .onKeyInput((data, pack) -> data.getEntity().sendSystemMessage(Component.literal("按键拦截成功")), GLFW.GLFW_KEY_H)
-                            .endWith(data -> data.getEntity().displayClientMessage(Component.literal("OldMaEnd"), false)),
-                    "key test")
-            .end(Player.class));
+//    public static final DeferredHolder<Skill<?>, Skill<Player>> TEST_SKILL = SKILL.register("test",
+//            () -> Skill.Builder.<Player>of(30, 4)
+//                    .start(data -> data.getEntity().displayClientMessage(Component.literal("TestSkillInit"), false))
+////                    .flag(Skill.Flag.INSTANT_COMPLETE, true)
+//                    .onEvent(EntityTickEvent.Post.class, (event, data) -> {
+//                        Player player = data.getEntity();
+//                        if (player.level().getGameTime() % 100 == 0 && player.getHealth() < player.getMaxHealth()) {
+//                            player.displayClientMessage(Component.literal("You are healed!"), false);
+//                            player.addEffect(new MobEffectInstance(MobEffects.HEAL, 100, 2));
+//                        }
+//                    })
+//                    .inactive(builder -> builder
+//                            //按键监听测试
+//                            .onHurt((event, data) -> data.addEnergy(-1))
+//                            .onAttack((event, data) -> data.addEnergy(2))
+//                            .onKillTarget((event, data) -> data.addEnergy(5))
+//                            .inactiveEnergyChanged((data, i) -> {
+//                                data.getEntity().displayClientMessage(Component.literal("Energy " + (i >= 0 ? "§a+" : "§c-") + i), true);
+//                            })
+//                            .chargeChanged((data, i) -> {
+//                                data.getEntity().displayClientMessage(Component.literal("Charge " + (i >= 0 ? "§a+" : "§c-") + i), true);
+//                                ResourceLocation location = ResourceLocation.fromNamespaceAndPath(Blast.MODID, "skill_test");
+//                                data.addAutoCleanAttribute(new AttributeModifier(location, 0.5 * data.getCharge(), AttributeModifier.Operation.ADD_VALUE), Attributes.MOVEMENT_SPEED);
+//                            })
+//                            .onChargeReady(data -> data.getEntity().displayClientMessage(Component.literal("ReachReady!"), false))
+//                            .onChargeFull(data -> data.getEntity().displayClientMessage(Component.literal("ReachStop!"), false))
+//                            .endWith(data -> {
+//                                data.putCacheData("charge_consume", data.getCharge() + 1 + "", true, true);
+//                                data.setCharge(0);
+//                            })
+//                    )
+//                    .judge((data, name) -> !"active".equals(name.orElse("")) || (data.getEntity().level().isNight() && data.getCharge() >= 1))
+//                    .active(builder -> builder
+//                            .startWith(data -> {
+//                                Vec3 pos = data.getEntity().position();
+//                                ((ServerLevel) data.getEntity().level()).sendParticles(ParticleTypes.EXPLOSION, pos.x, pos.y, pos.z, 4, 0.5, 0.5, 0.5, 0.5);
+//                            })
+//                            .onTick((event, data) -> {
+//                                data.getEntity().displayClientMessage(Component.literal("activeTick"), true);
+//                                data.modifyActiveEnergy(-1);
+//                            })
+//                            .endWith(data -> {
+//                                data.getEntity().jumpFromGround();
+//                                data.getEntity().addDeltaMovement(new Vec3(0, 0.1, 0));
+//                                data.getEntity().addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 200 * data.getCacheDataAsInt("charge_consume", 0, true), 2));
+//                            })
+//                    )
+//                    .onBehaviorChange((data, behavior) -> {
+//                        if (data.getActiveTimes() == 5) data.requestDisable();
+//                        else {
+//                            data.getEntity().displayClientMessage(Component.literal("StateChanged: to " + behavior.map(s -> "\"" + behavior + "\"").orElse("null") + " time " + data.getActiveTimes()), false);
+//                            if ("active".equals(behavior.orElse(""))) data.consumeCharge();
+//                        }
+//                    })
+//                    .end(data -> data.getEntity().displayClientMessage(Component.literal("skill disabled"), false), Player.class)
+//    );
+//
+//    public static final DeferredHolder<Skill<?>, Skill<Player>> OLD_MA = SKILL.register("old_ma", () -> Skill.Builder
+//            .<Player>of(50, 3, 0, 0, 50)
+//            .start(data -> data.getEntity().displayClientMessage(Component.literal("OldMaInit"), false))
+//            .judge((data, name) -> data.getCharge() == 3)
+//            .addBehavior(builder -> builder
+//                            .onKeyInput((data, pack) -> data.getEntity().sendSystemMessage(Component.literal("按键拦截成功")), GLFW.GLFW_KEY_H)
+//                            .endWith(data -> data.getEntity().displayClientMessage(Component.literal("OldMaEnd"), false)),
+//                    "key test")
+//            .build(Player.class));
 
 
     public static class Start extends Item {

@@ -1,6 +1,5 @@
 package com.phasetranscrystal.blast.player;
 
-import com.google.common.collect.ImmutableSet;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.phasetranscrystal.blast.Registries;
@@ -9,7 +8,6 @@ import com.phasetranscrystal.blast.skill.Skill;
 import com.phasetranscrystal.blast.skill.SkillData;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.apache.logging.log4j.LogManager;
@@ -17,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nonnull;
 import java.util.*;
-import java.util.function.Supplier;
 
 public class SkillGroup {
     public static final Logger LOGGER = LogManager.getLogger("BreaBlast:Skill/Group");
@@ -34,7 +31,7 @@ public class SkillGroup {
 
     //infoCaches don't change
     private Skill<Player> skillCache;
-    private Optional<String> stageCache;
+    private String stageCache;
     private int inactiveEnergyCache = 0;
     private int activeEnergyCache = 0;
     private int activeTimesCache = 0;
@@ -45,7 +42,7 @@ public class SkillGroup {
 
     @SuppressWarnings("unchecked")
     private SkillGroup(List<Skill<?>> allowed, SkillData<?> data) {
-        allowed.stream().filter(s -> s != null && s.clazz.isAssignableFrom(Player.class)).map(s -> (Skill<Player>) s).forEach(unlockedSkills::add);
+        allowed.stream().filter(s -> s != null && s.bindingEntityClass.isAssignableFrom(Player.class)).map(s -> (Skill<Player>) s).forEach(unlockedSkills::add);
         this.currentSkill = (SkillData<Player>) data;
     }
 
@@ -107,7 +104,7 @@ public class SkillGroup {
     }
 
     public boolean unlock(Skill<?> skill) {
-        if (!unlockedSkills.contains(skill) && skill.clazz.isAssignableFrom(Player.class)) {
+        if (!unlockedSkills.contains(skill) && skill.bindingEntityClass.isAssignableFrom(Player.class)) {
             unlockedSkills.add((Skill<Player>) skill);
             return true;
         }
@@ -128,7 +125,7 @@ public class SkillGroup {
         return skillCache;
     }
 
-    public Optional<String> getStageCache() {
+    public String getStageCache() {
         return stageCache;
     }
 
@@ -156,7 +153,7 @@ public class SkillGroup {
             mutable.setSkill(skill);
             this.skillCache = skill;
         }
-        Optional<String> stage = currentSkill.getBehaviorName();
+        String stage = currentSkill.getBehaviorName();
         if (stage.equals(stageCache)) {
             mutable.setStage(stage);
             this.stageCache = stage;
@@ -166,7 +163,7 @@ public class SkillGroup {
             mutable.setInactiveEnergy(inactiveEnergy);
             this.inactiveEnergyCache = inactiveEnergy;
         }
-        int activeEnergy = currentSkill.getActiveEnergy();
+        int activeEnergy = currentSkill.getEnergy();
         if (activeEnergyCache != activeEnergy) {
             mutable.setActiveEnergy(activeEnergy);
             this.activeEnergyCache = activeEnergy;
