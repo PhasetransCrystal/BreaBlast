@@ -305,10 +305,21 @@ public class SkillData<T extends Entity> {
     }
 
     public int addEnergy(int amount, boolean consumerChargeLessThanZero) {
+        return addEnergy(amount, consumerChargeLessThanZero, skill.maxCharge);
+    }
+
+    public int addEnergyAllowOverCharge(int amount, boolean consumerChargeLessThanZero) {
+        return addEnergy(amount, consumerChargeLessThanZero, Integer.MAX_VALUE);
+    }
+
+    public int addEnergy(int amount, boolean consumerChargeLessThanZero, int allowedMaxCharge) {
         if (!enabled) return 0;
+        if (amount == 0) return 0;
 
         // 计算最大可增加的能量
-        int maxEnergy = skill.inactiveEnergy * skill.maxCharge;
+        int maxEnergy = skill.inactiveEnergy * allowedMaxCharge;
+        if(amount > 0 && this.inactiveEnergy >= maxEnergy) return 0;
+
         int chargeCache = this.inactiveEnergy / skill.inactiveEnergy;
         int energyCache = this.inactiveEnergy;
 
