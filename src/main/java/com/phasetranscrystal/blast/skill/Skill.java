@@ -46,19 +46,19 @@ public class Skill<T extends Entity> {
 
     public final Class<T> clazz;
 
-    private Skill(Builder<T> builder, Class<T> clazz) {
+    public Skill(Builder<T> builder, Class<T> clazz) {
         this.inactiveEnergy = Math.max(builder.inactiveEnergy, 0);
         this.maxCharge = Math.max(builder.maxCharge, 1);
         this.initialEnergy = Math.clamp(0, inactiveEnergy, builder.initialEnergy);
         this.initialCharge = Math.clamp(0, maxCharge, builder.initialCharge);
         this.activeEnergy = Math.max(builder.activeEnergy, 0);
 
-        this.initBehavior = Optional.ofNullable(builder.initBehavior);
-
         if (builder.initBehavior != null && !builder.behaviors.containsKey(builder.initBehavior)) {
             LOGGER.error("Init behavior(name={}) not exist in behaviors({}). Changed to null.", builder.initBehavior, Arrays.toString(builder.behaviors.keySet().toArray()));
             builder.initBehavior = null;
         }
+
+        this.initBehavior = Optional.ofNullable(builder.initBehavior);
 
         ImmutableMap.Builder<String, Behavior<T>> behavBuilder = ImmutableMap.builder();
         builder.behaviors.forEach((name, b) -> behavBuilder.put(name, b.build()));
@@ -73,6 +73,41 @@ public class Skill<T extends Entity> {
 
         this.keys = IntList.of(builder.keys.toIntArray());
         this.listeners = ImmutableMap.copyOf(builder.listeners);
+//        this.flags = ImmutableSet.copyOf(builder.flags);
+
+        this.clazz = clazz;
+    }
+
+    public Skill(int inactiveEnergy, int maxCharge, int initialEnergy, int initialCharge, int activeEnergy, String initBehavior, Map<String, Behavior.Builder<T>> behaviors, Consumer<SkillData<T>> onStart,
+                 Consumer<SkillData<T>> onEnd, ToBooleanBiFunction<SkillData<T>, Optional<String>> judge, BiConsumer<SkillData<T>, Optional<String>> stateChange, KeyInput.Consumer<T> keyChange,
+                 IntList keys, Map<Class<? extends Event>, BiConsumer<? extends Event, SkillData<T>>> listeners, Class<T> clazz) {
+        this.inactiveEnergy = Math.max(inactiveEnergy, 0);
+        this.maxCharge = Math.max(maxCharge, 1);
+        this.initialEnergy = Math.clamp(0, this.inactiveEnergy, initialEnergy);
+        this.initialCharge = Math.clamp(0, this.maxCharge, initialCharge);
+        this.activeEnergy = Math.max(activeEnergy, 0);
+
+
+        if (initBehavior != null && !behaviors.containsKey(initBehavior)) {
+            LOGGER.error("Init behavior(name={}) not exist in behaviors({}). Changed to null.", initBehavior, Arrays.toString(behaviors.keySet().toArray()));
+            initBehavior = null;
+        }
+
+        this.initBehavior = Optional.ofNullable(initBehavior);
+
+        ImmutableMap.Builder<String, Behavior<T>> behavBuilder = ImmutableMap.builder();
+        behaviors.forEach((name, b) -> behavBuilder.put(name, b.build()));
+        this.behaviors = behavBuilder.build();
+
+
+        this.onStart = onStart;
+        this.onEnd = onEnd;
+        this.judge = judge;
+        this.stateChange = stateChange;
+        this.keyChange = keyChange;
+
+        this.keys = IntList.of(keys.toIntArray());
+        this.listeners = ImmutableMap.copyOf(listeners);
 //        this.flags = ImmutableSet.copyOf(builder.flags);
 
         this.clazz = clazz;
