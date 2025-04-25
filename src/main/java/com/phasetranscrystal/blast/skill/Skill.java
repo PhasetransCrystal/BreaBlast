@@ -42,7 +42,7 @@ public class Skill<T extends Entity> {
 
     public final IntList keys;
     public final ImmutableMap<Class<? extends Event>, BiConsumer<? extends Event, SkillData<T>>> listeners;
-    public final ImmutableSet<Flag> flags;
+//    public final ImmutableSet<Flag> flags;
 
     public final Class<T> clazz;
 
@@ -73,7 +73,7 @@ public class Skill<T extends Entity> {
 
         this.keys = IntList.of(builder.keys.toIntArray());
         this.listeners = ImmutableMap.copyOf(builder.listeners);
-        this.flags = ImmutableSet.copyOf(builder.flags);
+//        this.flags = ImmutableSet.copyOf(builder.flags);
 
         this.clazz = clazz;
     }
@@ -99,7 +99,7 @@ public class Skill<T extends Entity> {
         public IntList keys = new IntArrayList();
         public HashMap<Class<? extends Event>, BiConsumer<? extends Event, SkillData<T>>> listeners = new HashMap<>();
 
-        public HashSet<Flag> flags = new HashSet<>();
+//        public HashSet<Flag> flags = new HashSet<>();
 
         private Builder(int inactiveEnergy, int maxChargeTimes) {
             this.inactiveEnergy = inactiveEnergy;
@@ -231,17 +231,17 @@ public class Skill<T extends Entity> {
             return this;
         }
 
-        public Builder<T> flag(Flag flag, boolean execute) {
-            return flag(flag, execute, null, null);
-        }
-
-        public Builder<T> flag(Flag flag, boolean execute, String nameRedirect1, String nameRedirect2) {
-            flags.add(flag);
-            if (execute) {
-                flag.consumer.accept(this, nameRedirect1, nameRedirect2);
-            }
-            return this;
-        }
+//        public Builder<T> flag(Flag flag, boolean execute) {
+//            return flag(flag, execute, null, null);
+//        }
+//
+//        public Builder<T> flag(Flag flag, boolean execute, String nameRedirect1, String nameRedirect2) {
+//            flags.add(flag);
+//            if (execute) {
+//                flag.consumer.accept(this, nameRedirect1, nameRedirect2);
+//            }
+//            return this;
+//        }
 
         public Skill<T> end(Class<T> targetType) {
             return new Skill<>(this, targetType);
@@ -253,6 +253,7 @@ public class Skill<T extends Entity> {
         }
     }
 
+    @Deprecated(forRemoval = true)
     public enum Flag implements StringRepresentable {
         AUTO_START("auto_start", (builder, redirectName1, redirectName2) -> builder.behaviors.get(redirectName1 == null ? "inactive" : redirectName1).onChargeReady(data -> data.switchTo(redirectName2 == null ? "active" : redirectName2))),
         AUTO_FINISH("auto_finish", (builder, redirectName1, redirectName2) -> builder.behaviors.get(Objects.requireNonNullElse(redirectName1, "active")).onActiveEnergyEmpty(data -> data.switchTo(Objects.requireNonNullElse(redirectName2, "inactive")))),
