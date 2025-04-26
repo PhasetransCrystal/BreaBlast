@@ -260,8 +260,8 @@ public class Skill<T extends Entity> {
         AUTO_START("auto_start", (builder, redirectName1, redirectName2) -> builder.behaviors.get(redirectName1 == null ? "inactive" : redirectName1).onChargeReady(data -> data.switchTo(redirectName2 == null ? "active" : redirectName2))),
         AUTO_FINISH("auto_finish", (builder, redirectName1, redirectName2) -> builder.behaviors.get(Objects.requireNonNullElse(redirectName1, "active")).onActiveEnergyEmpty(data -> data.switchTo(Objects.requireNonNullElse(redirectName2, "inactive")))),
 
-//        INSTANT_COMPLETE("instant_complete", (builder, redirectName1, redirectName2) -> builder.activeEnergy = 0),
-//        PASSIVITY("passivity", (builder, redirectName1, redirectName2) -> builder.inactiveEnergy = 0),
+//        INSTANT_COMPLETE("instant_complete", (builder, redirectName1, redirectName2) -> builder.maxStageEnergy = 0),
+//        PASSIVITY("passivity", (builder, redirectName1, redirectName2) -> builder.energy = 0),
 
         INTERRUPTIBLE("interruptible"),
 

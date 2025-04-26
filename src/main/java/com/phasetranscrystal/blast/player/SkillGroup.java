@@ -32,8 +32,9 @@ public class SkillGroup {
     //infoCaches don't change
     private Skill<Player> skillCache;
     private String stageCache;
-    private int inactiveEnergyCache = 0;
-    private int activeEnergyCache = 0;
+    private int energyCache = 0;
+    private int maxStageEnergyCache = 0;
+    private int maxChargeCache = 0;
     private int activeTimesCache = 0;
 
     public SkillGroup() {
@@ -88,8 +89,9 @@ public class SkillGroup {
     protected void consumeSynPacket(SkillDataSynPacket packet) {
         packet.skill().ifPresent(s -> this.skillCache = s);
         packet.stage().ifPresent(s -> this.stageCache = s);
-        packet.inactiveEnergy().ifPresent(e -> this.inactiveEnergyCache = e);
-        packet.activeEnergy().ifPresent(e -> this.activeEnergyCache = e);
+        packet.energy().ifPresent(e -> this.energyCache = e);
+        packet.maxStageEnergy().ifPresent(e -> this.maxStageEnergyCache = e);
+        packet.maxCharge().ifPresent(e -> this.maxChargeCache = e);
         packet.activeTimes().ifPresent(e -> this.activeTimesCache = e);
     }
 
@@ -129,12 +131,16 @@ public class SkillGroup {
         return stageCache;
     }
 
-    public int getInactiveEnergyCache() {
-        return inactiveEnergyCache;
+    public int getEnergyCache() {
+        return energyCache;
     }
 
-    public int getActiveEnergyCache() {
-        return activeEnergyCache;
+    public int getMaxStageEnergyCache() {
+        return maxStageEnergyCache;
+    }
+
+    public int getMaxChargeCache() {
+        return maxChargeCache;
     }
 
     public int getActiveTimesCache() {
@@ -145,7 +151,7 @@ public class SkillGroup {
         if (player == null || !changed && !currentSkill.isChanged()) return;
 
         changed = false;
-        currentSkill.consumeChange();
+        currentSkill.consumeChanged();
 
         SkillDataSynPacket.Mutable mutable = new SkillDataSynPacket.Mutable();
         Skill<Player> skill = currentSkill.skill;
@@ -155,18 +161,23 @@ public class SkillGroup {
         }
         String stage = currentSkill.getBehaviorName();
         if (stage.equals(stageCache)) {
-            mutable.setStage(stage);
+            mutable.setBehaviorName(stage);
             this.stageCache = stage;
         }
-        int inactiveEnergy = currentSkill.getInactiveEnergy();
-        if (inactiveEnergyCache != inactiveEnergy) {
-            mutable.setInactiveEnergy(inactiveEnergy);
-            this.inactiveEnergyCache = inactiveEnergy;
+        int energy = currentSkill.getEnergy();
+        if (energyCache != energy) {
+            mutable.setEnergy(energy);
+            this.energyCache = energy;
         }
-        int activeEnergy = currentSkill.getEnergy();
-        if (activeEnergyCache != activeEnergy) {
-            mutable.setActiveEnergy(activeEnergy);
-            this.activeEnergyCache = activeEnergy;
+        int maxStageEnergy = currentSkill.getMaxStageEnergy();
+        if (maxStageEnergyCache != maxStageEnergy) {
+            mutable.setMaxStageEnergy(maxStageEnergy);
+            this.maxStageEnergyCache = maxStageEnergy;
+        }
+        int maxCharge = currentSkill.getMaxCharge();
+        if (maxChargeCache != maxCharge) {
+            mutable.setMaxCharge(maxCharge);
+            this.maxChargeCache = maxCharge;
         }
         int activeTimes = currentSkill.getActiveTimes();
         if (activeTimesCache != activeTimes) {

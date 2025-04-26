@@ -14,22 +14,24 @@ import java.util.Optional;
 
 public record SkillDataSynPacket(Optional<Skill<Player>> skill,
                                  Optional<String> stage,
-                                 Optional<Integer> inactiveEnergy, Optional<Integer> activeEnergy,
+                                 Optional<Integer> energy, Optional<Integer> maxStageEnergy,
+                                 Optional<Integer> maxCharge,
                                  Optional<Integer> activeTimes) implements CustomPacketPayload {
     public static final Type<SkillDataSynPacket> TYPE = new Type<>(Blast.location("player_skill_syn"));
     public static final StreamCodec<ByteBuf, SkillDataSynPacket> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.optional(ByteBufCodecs.fromCodec(Registries.SKILL.byNameCodec())), packet -> packet.skill.map(s -> s),
             ByteBufCodecs.optional(ByteBufCodecs.STRING_UTF8), SkillDataSynPacket::stage,
-            ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::inactiveEnergy,
-            ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::activeEnergy,
+            ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::energy,
+            ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::maxStageEnergy,
+            ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::maxCharge,
             ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), SkillDataSynPacket::activeTimes,
             SkillDataSynPacket::decode
     );
 
     @SuppressWarnings("all")
     private static SkillDataSynPacket decode(Optional<Skill<?>> skill, Optional<String> stage,
-                                             Optional<Integer> inactiveEnergy, Optional<Integer> activeEnergy, Optional<Integer> activeTimes) {
-        return new SkillDataSynPacket(skill.map(s -> (Skill<Player>) s), stage, inactiveEnergy, activeEnergy, activeTimes);
+                                             Optional<Integer> energy, Optional<Integer> maxStageEnergy,Optional<Integer> maxCharge, Optional<Integer> activeTimes) {
+        return new SkillDataSynPacket(skill.map(s -> (Skill<Player>) s), stage, energy, maxStageEnergy, maxCharge, activeTimes);
     }
 
     @Override
@@ -44,9 +46,10 @@ public record SkillDataSynPacket(Optional<Skill<Player>> skill,
 
     public static class Mutable {
         public Optional<Skill<Player>> skill = Optional.empty();
-        public Optional<String> stage = Optional.empty();
-        public Optional<Integer> inactiveEnergy = Optional.empty();
-        public Optional<Integer> activeEnergy = Optional.empty();
+        public Optional<String> behaviorName = Optional.empty();
+        public Optional<Integer> energy = Optional.empty();
+        public Optional<Integer> maxStageEnergy = Optional.empty();
+        public Optional<Integer> maxCharge = Optional.empty();
         public Optional<Integer> activeTimes = Optional.empty();
 
 
@@ -54,16 +57,20 @@ public record SkillDataSynPacket(Optional<Skill<Player>> skill,
             this.skill = Optional.of(skill);
         }
 
-        public void setStage(String stage) {
-            this.stage = Optional.of(stage);
+        public void setBehaviorName(String behaviorName) {
+            this.behaviorName = Optional.of(behaviorName);
         }
 
-        public void setInactiveEnergy(int inactiveEnergy) {
-            this.inactiveEnergy = Optional.of(inactiveEnergy);
+        public void setEnergy(int energy) {
+            this.energy = Optional.of(energy);
         }
 
-        public void setActiveEnergy(int activeEnergy) {
-            this.activeEnergy = Optional.of(activeEnergy);
+        public void setMaxStageEnergy(int maxStageEnergy) {
+            this.maxStageEnergy = Optional.of(maxStageEnergy);
+        }
+
+        public void setMaxCharge(int maxCharge) {
+            this.maxCharge = Optional.of(maxCharge);
         }
 
         public void setActiveTimes(int activeTimes) {
@@ -71,7 +78,7 @@ public record SkillDataSynPacket(Optional<Skill<Player>> skill,
         }
 
         public SkillDataSynPacket build() {
-            return new SkillDataSynPacket(skill, stage, inactiveEnergy, activeEnergy, activeTimes);
+            return new SkillDataSynPacket(skill, behaviorName, energy, maxStageEnergy, maxCharge, activeTimes);
         }
     }
 }
