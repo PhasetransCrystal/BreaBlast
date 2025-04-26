@@ -26,7 +26,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class Skill<T extends Entity> {
-    public static final Skill<Entity> EMPTY = Skill.Builder.of(0,"default").addBehavior(b -> {},"default").build(Entity.class);
+    public static final Skill<Entity> EMPTY = Skill.Builder.of(0, "default").addBehavior("default", b -> {
+    }).build(Entity.class);
 
     public static final Logger LOGGER = LogManager.getLogger("BreaBlast:Skill");
     public static final ResourceLocation NAME = Blast.location("skill");
@@ -52,7 +53,7 @@ public class Skill<T extends Entity> {
     public final Class<T> bindingEntityClass;
 
     public Skill(Builder<T> builder, Class<T> bindingEntityClass) {
-        this(builder.initialEnergy, builder.initBehavior, Maps.transformValues(builder.behaviors,Behavior.Builder::build), builder.onStart, builder.onEnd, builder.judge, builder.behaviorChange, builder.keyChange, builder.keys, builder.listeners, bindingEntityClass);
+        this(builder.initialEnergy, builder.initBehavior, Maps.transformValues(builder.behaviors, Behavior.Builder::build), builder.onStart, builder.onEnd, builder.judge, builder.behaviorChange, builder.keyChange, builder.keys, builder.listeners, bindingEntityClass);
     }
 
     public Skill(int initialEnergy, @Nonnull String initBehavior, Map<String, Behavior<T>> behaviors, Consumer<SkillData<T>> onStart,
@@ -176,19 +177,19 @@ public class Skill<T extends Entity> {
             return this;
         }
 
-        public Builder<T> addBehavior(Consumer<Behavior.Builder<T>> consumer, String name) {
+        public Builder<T> addBehavior(String name, Consumer<Behavior.Builder<T>> consumer) {
             Behavior.Builder<T> builder = Behavior.Builder.create();
             consumer.accept(builder);
-            return addBehavior(builder, name);
+            return addBehavior(name, builder);
         }
 
-        public Builder<T> addBehavior(Consumer<Behavior.Builder<T>> consumer, int maxEnergy, int maxCharge, String name) {
+        public Builder<T> addBehavior(int maxEnergy, int maxCharge, String name, Consumer<Behavior.Builder<T>> consumer) {
             Behavior.Builder<T> builder = Behavior.Builder.create(maxEnergy, maxCharge);
             consumer.accept(builder);
-            return addBehavior(builder, name);
+            return addBehavior(name, builder);
         }
 
-        public Builder<T> addBehavior(Behavior.Builder<T> builder, String name) {
+        public Builder<T> addBehavior(String name, Behavior.Builder<T> builder) {
             behaviors.put(name, builder);
             return this;
         }
