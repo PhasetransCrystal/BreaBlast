@@ -176,9 +176,19 @@ public class Skill<T extends Entity> {
             return this;
         }
 
-        public Builder<T> addBehavior(Consumer<Behavior.Builder<T>> inactive, String name) {
+        public Builder<T> addBehavior(Consumer<Behavior.Builder<T>> consumer, String name) {
             Behavior.Builder<T> builder = Behavior.Builder.create();
-            inactive.accept(builder);
+            consumer.accept(builder);
+            return addBehavior(builder, name);
+        }
+
+        public Builder<T> addBehavior(Consumer<Behavior.Builder<T>> consumer, int maxEnergy, int maxCharge, String name) {
+            Behavior.Builder<T> builder = Behavior.Builder.create(maxEnergy, maxCharge);
+            consumer.accept(builder);
+            return addBehavior(builder, name);
+        }
+
+        public Builder<T> addBehavior(Behavior.Builder<T> builder, String name) {
             behaviors.put(name, builder);
             return this;
         }
